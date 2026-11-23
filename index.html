@@ -1472,7 +1472,7 @@ function dupAlert(d){
 }
 
 /* ============ Régies : stats côté Sayor ============ */
-const REGIE_STATUTS = ['En attente','NRP','Attente docs','Docs reçus','Annulé'];
+const REGIE_STATUTS = STATUTS;
 const isRegie = () => !!S.me.regie;
 const regieCout = d => d.regie ? n0(d.regieMontant) : 0;
 function regieStats(r){
@@ -1514,7 +1514,7 @@ function vRDash(v){
     <div class="panel"><div class="panel-head"><h2>Prochaines poses</h2></div>
       <div class="list">${poses.slice(0,12).map(d=>`<div class="li" data-open="${d.id}"><div class="grow"><div class="t">${esc(fullName(d))}</div><div class="small muted">${esc([d.client?.cp,d.client?.ville].filter(Boolean).join(' '))}</div></div><b class="num small">${fmtDate(d.datePose,{day:'2-digit',month:'2-digit',year:'numeric'})}</b></div>`).join('')||'<div class="empty">Aucune pose fixée pour l’instant.</div>'}</div></div>
   </div>
-  <p class="hint" style="margin-top:14px">Vous gérez le suivi jusqu’à « Docs reçus ». Ensuite, Sayor Groupe place la pose (« Pose à placer », « Pose fixée ») puis passe le dossier en « Installé ». Vous voyez chaque étape ici.</p>`;
+  <p class="hint" style="margin-top:14px">Le statut de chaque dossier est partagé avec Sayor Groupe : chaque changement, de votre côté ou du nôtre, apparaît ici.</p>`;
 }
 function vRDossiers(v){
   v.innerHTML = topBar('Mes dossiers',`<span class="muted small hide-m">${S.dossiers.length} dossiers</span>`)+`
@@ -1552,12 +1552,12 @@ function openDossierRegie(id){
   o.client ||= {}; o.proprietaire ||= {};
   cur = { id: d?.id||null, orig: JSON.parse(JSON.stringify(o)) };
   const loc=o.occupant==='locataire';
-  const libre = !d || REGIE_STATUTS.includes(o.statut||'En attente');
+  const libre = true;
   $('#sheet').innerHTML = `<div class="sheet-in" role="dialog" aria-modal="true" aria-label="Dossier">
     <div class="sheet-head"><button class="btn ghost" id="sh-close" aria-label="Fermer">${ic('x')}</button><h2 id="sh-title">${d?esc(fullName(d)):'Nouveau dossier'}</h2>${d?badge(d.statut):''}</div>
     <form class="sheet-body" id="dform" autocomplete="off">
       <fieldset><legend>Suivi</legend><div class="fg">
-        ${libre?`<div class="f c2"><label for="f-statut">Statut</label><select class="inp" id="f-statut" data-f="statut">${REGIE_STATUTS.map(s=>`<option ${s===o.statut?'selected':''}>${s}</option>`).join('')}</select><span class="hint">Passez le dossier en « Docs reçus » quand tous les documents sont dans le CRM : Sayor Groupe place alors la pose.</span></div>`
+        ${libre?`<div class="f c2"><label for="f-statut">Statut</label><select class="inp" id="f-statut" data-f="statut">${REGIE_STATUTS.map(s=>`<option ${s===o.statut?'selected':''}>${s}</option>`).join('')}</select><span class="hint">Passez le dossier en « Docs reçus » quand tous les documents sont dans le CRM.</span></div>`
           :`<div class="f c2"><span class="label">Statut</span><div style="margin-top:6px">${badge(o.statut)}</div><span class="hint">Dossier pris en charge par Sayor Groupe.</span></div>`}
         <div class="f c2"><span class="label">Date de pose</span><div style="margin-top:6px"><b>${o.datePose?fmtDate(o.datePose,{weekday:'long',day:'numeric',month:'long',year:'numeric'}):'Pas encore fixée'}</b></div></div>
       </div></fieldset>
