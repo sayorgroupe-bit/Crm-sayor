@@ -657,14 +657,14 @@ const fraisLies = d => S.fraisDivers.filter(f=>f.dossierId && f.dossierId===d.id
 const couleurDossier = d => d.ceeCouleur || d.mprCouleur || '';
 const surcoms = d => d.apporteur2 && n0(d.commission2) ? [{beneficiaire:d.apporteur2, montant:n0(d.commission2)}] : [];
 const surcomTotal = d => actif(d) ? surcoms(d).reduce((a,x)=>a+x.montant,0) : 0;
-const couts = d => n0(d.materiel)+n0(d.pose)+n0(d.frais)+n0(d.bonusApporteur)+n0(d.commission)+surcomTotal(d)+(d.regie?n0(d.regieMontant):0)+(d.id?fraisLies(d):0);
+const couts = d => n0(d.materiel)+n0(d.pose)+n0(d.frais)+n0(d.bonusApporteur)+n0(d.commission)+surcomTotal(d)+regieCout(d)+(d.id?fraisLies(d):0);
 const caPrev = d => actif(d) ? ceeMontant(d)+mprMontant(d)+racMontant(d) : 0;
 const margePrev = d => caPrev(d) - (actif(d)?couts(d):0);
 
 function totals(list=S.dossiers, global=(list===S.dossiers)){
   const t={ceeEnc:0,ceePrev:0,mprEnc:0,mprPrev:0,racEnc:0,racPrev:0,materiel:0,pose:0,frais:0,bonus:0,commission:0,divers:0,surcom:0,regie:0};
   list.filter(actif).forEach(d=>{ t.ceeEnc+=ceeEnc(d); t.ceePrev+=ceeMontant(d); t.mprEnc+=mprEnc(d); t.mprPrev+=mprMontant(d); t.racEnc+=racEnc(d); t.racPrev+=racMontant(d);
-    t.materiel+=n0(d.materiel); t.pose+=n0(d.pose); t.frais+=n0(d.frais); t.bonus+=n0(d.bonusApporteur); t.commission+=n0(d.commission); t.surcom+=surcomTotal(d); t.regie+=(d.regie?n0(d.regieMontant):0); t.divers+=fraisLies(d); });
+    t.materiel+=n0(d.materiel); t.pose+=n0(d.pose); t.frais+=n0(d.frais); t.bonus+=n0(d.bonusApporteur); t.commission+=n0(d.commission); t.surcom+=surcomTotal(d); t.regie+=regieCout(d); t.divers+=fraisLies(d); });
   if(global) t.divers+=S.fraisDivers.filter(f=>!f.dossierId || !S.dossiers.some(d=>d.id===f.dossierId)).reduce((a,f)=>a+n0(f.montant),0);
   t.enc=t.ceeEnc+t.mprEnc+t.racEnc; t.prev=t.ceePrev+t.mprPrev+t.racPrev;
   t.couts=t.materiel+t.pose+t.frais+t.bonus+t.commission+t.surcom+t.regie+t.divers;
@@ -876,13 +876,13 @@ function renderDList(){
 const PERSON = [['nom','Nom'],['prenom','Prénom'],['adresse','Adresse','c2'],['cp','CP'],['ville','Ville'],['tel','Téléphone'],['email','Email']];
 const LABELS = { occupant:'Type d’occupant', statut:'Statut', datePose:'Date de pose', commercial:'Commercial', fournisseur:'Fournisseur', marque:'Marque PAC', modele:'Modèle PAC',
   materiel:'Matériel TTC', pose:'Pose TTC', poseur:'Poseur', frais:'Frais supplémentaires', fraisDetail:'Détail des frais', ceeCouleur:'Couleur CEE', ceeStatut:'CEE',
-  mprCouleur:'Couleur MPR', mprStatut:'MPR', ceeReel:'Montant CEE réel', mprReel:'Montant MPR réel', rac:'Reste à charge client', racPaye:'RAC déjà payé', bonusApporteur:'Bonus apporteur MPR', commission:'Commission commerciale CEE', apporteur2:'Apporteur supplémentaire', commission2:'Commission apporteur supplémentaire', regie:'Régie', regieMontant:'Commission régie', stockId:'Matériel pris dans le stock', notes:'Notes', infos:'Informations dossier', 'proprietaire.infos':'Propriétaire — infos MPR' };
+  mprCouleur:'Couleur MPR', mprStatut:'MPR', ceeReel:'Montant CEE réel', mprReel:'Montant MPR réel', rac:'Reste à charge client', racPaye:'RAC déjà payé', bonusApporteur:'Bonus apporteur MPR', commission:'Commission commerciale CEE', apporteur2:'Apporteur supplémentaire', commission2:'Commission apporteur supplémentaire', regie:'Régie', regieMontant:'Commission régie CEE', regieMontantMPR:'Commission régie MPR', stockId:'Matériel pris dans le stock', notes:'Notes', infos:'Informations dossier', 'proprietaire.infos':'Propriétaire — infos MPR' };
 PERSON.forEach(([k,l])=>{ LABELS['client.'+k]=l; LABELS['proprietaire.'+k]='Propriétaire — '+l.toLowerCase(); });
-const NUM_FIELDS = new Set(['materiel','pose','frais','bonusApporteur','commission','commission2','regieMontant','ceeReel','mprReel','rac','racPaye']);
+const NUM_FIELDS = new Set(['materiel','pose','frais','bonusApporteur','commission','commission2','regieMontant','regieMontantMPR','ceeReel','mprReel','rac','racPaye']);
 let cur=null; // {id, orig}
 
 function blankDossier(){ return { occupant:'proprietaire', client:{}, proprietaire:{}, statut:'En attente', datePose:'', commercial:'', fournisseur:'', marque:'', modele:'', materiel:null, pose:null, poseur:'',
-  frais:null, fraisDetail:'', ceeReel:null, mprReel:null, rac:null, racPaye:null, ceeCouleur:'', ceeStatut:'En attente', mprCouleur:'', mprStatut:'À faire', bonusApporteur:null, commission:null, apporteur2:'', commission2:null, regie:'', regieMontant:null, tech:{}, notes:'', infos:'' }; }
+  frais:null, fraisDetail:'', ceeReel:null, mprReel:null, rac:null, racPaye:null, ceeCouleur:'', ceeStatut:'En attente', mprCouleur:'', mprStatut:'À faire', bonusApporteur:null, commission:null, apporteur2:'', commission2:null, regie:'', regieMontant:null, regieMontantMPR:null, tech:{}, notes:'', infos:'' }; }
 function opt(list,val,empty='—'){ const l=[...list]; if(val && !l.includes(val)) l.push(val); return `<option value="">${empty}</option>`+l.map(x=>`<option ${x===val?'selected':''}>${esc(x)}</option>`).join(''); }
 function personFields(prefix,o){ return PERSON.map(([k,l,c])=>`<div class="f ${c||''}"><label for="f-${prefix}-${k}">${l}</label><input class="inp" id="f-${prefix}-${k}" data-f="${prefix}.${k}" value="${esc(o?.[k])}" ${k==='tel'?'inputmode="tel" autocomplete="off"':''} ${k==='email'?'type="email" autocomplete="off"':''} ${k==='cp'?'inputmode="numeric"':''}></div>`).join(''); }
 function selAdd(id,field,list,val,what){ return `<div class="sel-add"><select class="inp" id="${id}" data-f="${field}">${opt(list,val)}</select><button type="button" class="btn" data-add="${what}" data-target="${id}" title="Ajouter ${what}" aria-label="Ajouter ${what}">${ic('plus')}</button></div><div class="addrow" data-addrow="${id}" hidden><input class="inp" placeholder="Nouveau nom"><button type="button" class="btn sm primary">Ajouter</button></div>`; }
@@ -957,7 +957,8 @@ function openDossier(id){
         <div class="f c2"><label for="f-comm">Commission commerciale CEE (€)</label><input class="inp num" id="f-comm" data-f="commission" inputmode="decimal" value="${o.commission??''}"><span class="hint" id="comm-hint">Acquise quand le dossier est installé.</span></div>
         <div class="f c2"><label for="f-app2">Apporteur supplémentaire</label>${selAdd('f-app2','apporteur2',C.commerciaux.map(c=>c.nom),o.apporteur2,'commercial')}<span class="hint">Facultatif. Ex. : EITHAN sur un dossier de CANO.</span></div>
         <div class="f c2"><label for="f-regie">Régie</label>${selAdd('f-regie','regie',C.regies.map(c=>c.nom),o.regie,'regie')}<span class="hint">${o.regie&&o.createdBy&&S.membres[o.createdBy]?'Dossier saisi par la régie.':'Facultatif : dossier apporté par une régie.'}</span></div>
-        <div class="f c2"><label for="f-regm">Commission régie (€)</label><input class="inp num" id="f-regm" data-f="regieMontant" inputmode="decimal" value="${o.regieMontant??''}"><span class="hint">Due à la régie quand le dossier est installé. La régie ne la voit pas.</span></div>
+        <div class="f c2"><label for="f-regm">Commission régie CEE (€)</label><input class="inp num" id="f-regm" data-f="regieMontant" inputmode="decimal" value="${o.regieMontant??''}"><span class="hint">Due à la régie quand le dossier est installé. La régie ne voit pas ses commissions.</span></div>
+        <div class="f c2"><label for="f-regm2">Commission régie MPR (€)</label><input class="inp num" id="f-regm2" data-f="regieMontantMPR" inputmode="decimal" value="${o.regieMontantMPR??''}"></div>
         <div class="f c2"><label for="f-comm2">Sa commission (€)</label><input class="inp num" id="f-comm2" data-f="commission2" inputmode="decimal" value="${o.commission2??''}"><span class="hint">Montant libre, acquis quand le dossier est installé.</span></div>
       </div></fieldset>
       <fieldset ${ro}><legend>Notes</legend><textarea class="inp" id="f-notes" data-f="notes" rows="3">${esc(o.notes)}</textarea></fieldset>
@@ -976,7 +977,7 @@ function openDossier(id){
   $$('input[name="occupant"]',form).forEach(r=>r.onchange=()=>{ const l=form.occupant.value==='locataire'; $('#fs-prop').hidden=!l; $('#cee-hint').hidden=!l; $('#lg-client').textContent=l?'Locataire':'Propriétaire-occupant'; });
   $('#f-com').addEventListener('change',e=>{ const c=S.cfg.commerciaux.find(x=>x.nom===e.target.value); if(!c) return; const inp=$('#f-comm'), b=$('#f-bonus');
     if(inp.value==='' && n0(c.parDossier)) inp.value=c.parDossier; if(b.value==='' && n0(c.bonusMPR)) b.value=c.bonusMPR; updCalc(); });
-  $('#f-regie').addEventListener('change',e=>{ const r=S.cfg.regies.find(x=>x.nom===e.target.value); const inp=$('#f-regm'); if(r && inp.value==='' && n0(r.parDossier)) inp.value=r.parDossier; updCalc(); });
+  $('#f-regie').addEventListener('change',e=>{ const r=S.cfg.regies.find(x=>x.nom===e.target.value); const inp=$('#f-regm'), inp2=$('#f-regm2'); if(r && inp.value==='' && n0(r.parDossier)) inp.value=r.parDossier; if(r && inp2.value==='' && n0(r.parDossierMPR)) inp2.value=r.parDossierMPR; updCalc(); });
   $('#f-statut').addEventListener('change',e=>{ const t=$('#f-tostock'); if(t && e.target.value==='Annulé') t.checked=true; });
   $('#f-tostock')?.addEventListener('change',e=>{ S.formDirty=true; if(e.target.checked && $('#f-statut').value!=='Annulé'){ $('#f-mat').value=''; toast('Saisissez le nouveau matériel du dossier'); updCalc(); } });
   $('#f-stock')?.addEventListener('change',e=>{ const x=S.stock.find(i=>i.id===e.target.value); if(!x) return;
@@ -1128,19 +1129,20 @@ function vEntites(type){
   ${type==='commercial'?`<p class="hint" style="margin-top:14px">Acquis = commissions CEE des dossiers installés + bonus apporteur MPR des dossiers dont le MPR est payé, + commissions d’apporteur supplémentaire des dossiers installés. Un paiement coché « avance » est versé avant que le MPR soit encaissé ; s’il dépasse l’acquis, la différence apparaît en avance à imputer.</p>`:''}
   ${type==='fournisseur'?`<p class="hint" style="margin-top:14px">Total dû = matériel TTC des dossiers actifs liés au fournisseur, plus ses frais divers (monosplit…), le matériel en stock commandé chez lui et l’ajustement. Un dossier qui prend une PAC du stock n’est pas compté deux fois. Les paiements se gèrent uniquement ici.</p>`:''}
   ${type==='poseur'?`<p class="hint" style="margin-top:14px">Total dû = pose TTC des dossiers installés. « À venir » = poses des dossiers pas encore installés.</p>`:''}
-  ${type==='regie'?`<p class="hint" style="margin-top:14px">Total dû = commissions des dossiers de la régie passés en « Installé ». La commission se règle dans chaque dossier (Rémunérations) ; la commission par défaut s’y met automatiquement quand vous choisissez la régie. Les régies ne voient aucun montant. Pour leur donner un accès : Paramètres → Comptes d’accès au site → Accès « Régie ».</p>`:''}`;
+  ${type==='regie'?`<p class="hint" style="margin-top:14px">Total dû = commissions CEE + MPR des dossiers de la régie passés en « Installé ». Les deux commissions se règlent dans chaque dossier (Rémunérations) ; les montants par défaut s’y mettent automatiquement. En payant, choisissez si le paiement concerne la commission CEE ou MPR. Les régies ne voient aucun montant. Pour leur donner un accès : Paramètres → Comptes d’accès au site → Accès « Régie ».</p>`:''}`;
   if(S.canWrite){ const add=()=>{ const val=$('#new-ent').value.trim().toUpperCase(); if(!val) return; addRef(type,val); renderView(); };
     $('#new-ent-btn').onclick=add; $('#new-ent').onkeydown=e=>{ if(e.key==='Enter') add(); }; }
   $$('form[data-pay]',v).forEach(f=>f.addEventListener('submit',async e=>{ e.preventDefault(); if(!db) return;
     const m=num(f.montant.value); if(!m){ f.montant.focus(); return; }
     const b=f.querySelector('button'); b.disabled=true;
-    try{ await db.collection('paiements').add({type, cible:f.dataset.pay, montant:m, date:f.date.value||TODAY(), note:f.note.value.trim(), avance:!!f.avance?.checked, at:new Date().toISOString(), by:S.me.id||null});
+    try{ await db.collection('paiements').add({type, cible:f.dataset.pay, montant:m, date:f.date.value||TODAY(), note:f.note.value.trim(), avance:!!f.avance?.checked, ...(type==='regie'?{objet:f.objet?.value||'CEE'}:{}), at:new Date().toISOString(), by:S.me.id||null});
       toast('Paiement enregistré'); f.reset(); f.date.value=TODAY(); }catch(err){ toast('Paiement non enregistré : '+(err.message||err.code)); }
     b.disabled=false; refresh(); }));
   $$('[data-delpay]',v).forEach(b=>b.onclick=()=>{ if(b.dataset.armed){ db.collection('paiements').doc(b.dataset.delpay).delete().then(()=>toast('Paiement supprimé')); } else { b.dataset.armed='1'; b.textContent='Confirmer'; b.classList.add('danger'); } });
   $$('[data-bareme]',v).forEach(inp=>inp.addEventListener('change',()=>{ const c=S.cfg.commerciaux[+inp.dataset.bareme]; c.parDossier=num(inp.value)||0; saveCfg(); toast('Barème mis à jour'); }));
   $$('[data-bonusmpr]',v).forEach(inp=>inp.addEventListener('change',()=>{ const c=S.cfg.commerciaux[+inp.dataset.bonusmpr]; c.bonusMPR=num(inp.value)||0; saveCfg(); toast('Bonus MPR mis à jour'); }));
-  $$('[data-regpar]',v).forEach(inp=>inp.addEventListener('change',()=>{ const c=S.cfg.regies[+inp.dataset.regpar]; c.parDossier=num(inp.value)||0; saveCfg(); toast('Commission par défaut enregistrée'); }));
+  $$('[data-regpar]',v).forEach(inp=>inp.addEventListener('change',()=>{ const c=S.cfg.regies[+inp.dataset.regpar]; c.parDossier=num(inp.value)||0; saveCfg(); toast('Commission CEE par défaut enregistrée'); }));
+  $$('[data-regparm]',v).forEach(inp=>inp.addEventListener('change',()=>{ const c=S.cfg.regies[+inp.dataset.regparm]; c.parDossierMPR=num(inp.value)||0; saveCfg(); toast('Commission MPR par défaut enregistrée'); }));
   $$('[data-ajust]',v).forEach(inp=>inp.addEventListener('change',()=>{ const c=S.cfg.fournisseurs[+inp.dataset.ajust]; c.ajustement=num(inp.value)||0; saveCfg(); toast('Ajustement enregistré'); }));
 }
 function entCard(type,e,i,s){
@@ -1150,13 +1152,14 @@ function entCard(type,e,i,s){
     ? `<div><span class="label">Acquis</span><b>${eur(s.acquis)}</b></div><div><span class="label">Payé</span><b>${eur(s.paye)}</b></div>
        <div><span class="label">${s.reste<0?'Avance à imputer':'Restant'}</span><b class="${s.reste>0?'neg':s.reste<0?'':''}">${eur(Math.abs(s.reste))}</b></div>
        <div><span class="label">Avances versées</span><b>${eur(s.avances)}</b></div><div><span class="label">Engagé total</span><b>${eur(s.engage)}</b></div><div><span class="label">Dossiers</span><b>${s.ds.length}</b></div>`
+    : type==='regie' ? `<div><span class="label">Dû CEE</span><b>${eur(s.duCEE)}</b><span class="small muted">payé ${eur(s.payeCEE)}</span></div><div><span class="label">Dû MPR</span><b>${eur(s.duMPR)}</b><span class="small muted">payé ${eur(s.payeMPR)}</span></div><div><span class="label">Restant</span><b class="${s.reste>0?'neg':''}">${eur(s.reste)}</b><span class="small muted">CEE ${eur(s.resteCEE)} · MPR ${eur(s.resteMPR)}</span></div>`
     : `<div><span class="label">Total dû</span><b>${eur(s.du)}</b></div><div><span class="label">Payé</span><b>${eur(s.paye)}</b></div><div><span class="label">Restant</span><b class="${s.reste>0?'neg':''}">${eur(s.reste)}</b></div>
        ${type==='poseur'||type==='regie'?`<div><span class="label">À venir</span><b>${eur(s.avenir)}</b></div><div><span class="label">Dossiers</span><b>${s.ds.length}</b></div>`:`<div><span class="label">Dossiers</span><b>${s.ds.length}</b></div>`}
        ${type==='regie'&&s.sansCom?`<div style="grid-column:1/-1"><span class="small neg">${s.sansCom} dossier${s.sansCom>1?'s':''} sans commission renseignée</span></div>`:''}`;
   return `<div class="panel ent">
     <div class="panel-head" style="margin:0"><h2>${type==='poseur'?`<span class="dot" style="background:${poseurColor(e.nom)};margin-right:8px"></span>`:''}${esc(e.nom)}</h2>
       ${type==='commercial'?`<div style="display:flex;gap:10px;flex-wrap:wrap"><label class="small muted" style="display:flex;align-items:center;gap:6px">Commission CEE <input class="inp num" style="width:84px;min-height:34px;padding:5px 8px" data-bareme="${i}" inputmode="decimal" value="${n0(e.parDossier)}" ${S.canWrite?'':'disabled'} aria-label="Commission CEE par dossier ${esc(e.nom)}"> €</label><label class="small muted" style="display:flex;align-items:center;gap:6px">Bonus MPR <input class="inp num" style="width:84px;min-height:34px;padding:5px 8px" data-bonusmpr="${i}" inputmode="decimal" value="${n0(e.bonusMPR)}" ${S.canWrite?'':'disabled'} aria-label="Bonus MPR par dossier ${esc(e.nom)}"> €</label></div>`:''}
-      ${type==='regie'?`<label class="small muted" style="display:flex;align-items:center;gap:6px">Commission par défaut <input class="inp num" style="width:90px;min-height:34px;padding:5px 8px" data-regpar="${i}" inputmode="decimal" value="${n0(e.parDossier)}" ${S.canWrite?'':'disabled'} aria-label="Commission par défaut ${esc(e.nom)}"> €</label>`:''}
+      ${type==='regie'?`<label class="small muted" style="display:flex;align-items:center;gap:6px">CEE <input class="inp num" style="width:80px;min-height:34px;padding:5px 8px" data-regpar="${i}" inputmode="decimal" value="${n0(e.parDossier)}" ${S.canWrite?'':'disabled'} aria-label="Commission CEE par défaut ${esc(e.nom)}"> €</label><label class="small muted" style="display:flex;align-items:center;gap:6px">MPR <input class="inp num" style="width:80px;min-height:34px;padding:5px 8px" data-regparm="${i}" inputmode="decimal" value="${n0(e.parDossierMPR)}" ${S.canWrite?'':'disabled'} aria-label="Commission MPR par défaut ${esc(e.nom)}"> €</label>`:''}
       ${type==='fournisseur'?`<label class="small muted" style="display:flex;align-items:center;gap:6px">Ajustement <input class="inp num" style="width:96px;min-height:34px;padding:5px 8px" data-ajust="${i}" inputmode="decimal" value="${n0(e.ajustement)}" ${S.canWrite?'':'disabled'} aria-label="Ajustement ${esc(e.nom)}"> €</label>`:''}</div>
     <div class="bar"><i style="width:${du?Math.min(100,s.paye/du*100):0}%;background:var(--ok)"></i></div>
     <div class="ent-figs">${figs}</div>
@@ -1166,12 +1169,13 @@ function entCard(type,e,i,s){
       <div class="f note"><label>Note</label><input class="inp" name="note" placeholder="${type==='commercial'?'Ex. : virement, avance MPR…':'Ex. : virement facture F2609…'}"></div>
       <button class="btn primary" type="submit">Payer</button>
       ${type==='commercial'?`<label class="small" style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><input type="checkbox" name="avance"> C’est une avance (MPR pas encore encaissé)</label>`:''}
+      ${type==='regie'?`<div class="toggle" role="radiogroup" aria-label="Paiement de la commission" style="grid-column:1/-1;justify-self:start"><label><input type="radio" name="objet" value="CEE" checked>Commission CEE</label><label><input type="radio" name="objet" value="MPR">Commission MPR</label></div>`:''}
     </form>`:''}
-    <details ${pays.length?'':''}><summary>Historique des paiements (${pays.length})</summary><div class="pays">${pays.map(p=>`<div class="pay"><span class="num" style="width:84px">${fmtDate(p.date,{day:'2-digit',month:'2-digit',year:'2-digit'})}</span><span class="grow">${esc(p.note||'Paiement')} ${p.avance?'<span class="tag">Avance</span>':''}</span><b class="num">${eur(p.montant)}</b>${S.canWrite?`<button class="btn sm ghost" data-delpay="${p.id}" aria-label="Supprimer le paiement">Suppr.</button>`:''}</div>`).join('')||'<div class="muted small" style="padding:6px 0">Aucun paiement.</div>'}</div></details>
+    <details ${pays.length?'':''}><summary>Historique des paiements (${pays.length})</summary><div class="pays">${pays.map(p=>`<div class="pay"><span class="num" style="width:84px">${fmtDate(p.date,{day:'2-digit',month:'2-digit',year:'2-digit'})}</span><span class="grow">${esc(p.note||'Paiement')} ${p.avance?'<span class="tag">Avance</span>':''}${p.type==='regie'?`<span class="tag">${p.objet==='MPR'?'MPR':'CEE'}</span>`:''}</span><b class="num">${eur(p.montant)}</b>${S.canWrite?`<button class="btn sm ghost" data-delpay="${p.id}" aria-label="Supprimer le paiement">Suppr.</button>`:''}</div>`).join('')||'<div class="muted small" style="padding:6px 0">Aucun paiement.</div>'}</div></details>
     ${type==='fournisseur'&&s.fr.length?`<details><summary>Frais divers (${s.fr.length}) · ${eur(s.fr.reduce((a,x)=>a+n0(x.montant),0))}</summary><div class="list">${s.fr.map(x=>`<div class="li" data-go="frais"><div class="grow"><div class="t">${esc(x.categorie||'Frais')}</div><div class="small muted">${esc(x.libelle||'')}</div></div><b class="num">${eur(x.montant)}</b></div>`).join('')}</div></details>`:''}
     ${type==='fournisseur'&&s.st.length?`<details><summary>Matériel en stock ou réutilisé (${s.st.length}) · ${eur(s.st.reduce((a,x)=>a+n0(x.montant),0))}</summary><div class="list">${s.st.map(x=>`<div class="li" data-go="stock"><div class="grow"><div class="t">${esc(stockLib(x))}</div><div class="small muted">${x.statut==='Utilisé'?'Posé chez '+esc(stockDosName(x.dossierId)):'En stock'+(x.lieu?' · '+esc(x.lieu):'')}</div></div><b class="num">${eur(x.montant)}</b></div>`).join('')}</div></details>`:''}
     ${type==='commercial'&&s.sur.length?`<details><summary>Apporteur supplémentaire sur d’autres dossiers (${s.sur.length}) · ${eur(s.sur.reduce((a,x)=>a+x.montant,0))}</summary><div class="list">${s.sur.map(x=>`<div class="li" data-open="${x.d.id}"><div class="grow"><div class="t">${esc(fullName(x.d))}</div><div class="small muted">Dossier ${esc(x.d.commercial)} · ${esc(couleurDossier(x.d)||'—')}</div></div><b class="num">${eur(x.montant)}</b>${badge(x.d.statut)}</div>`).join('')}</div></details>`:''}
-    <details><summary>Dossiers liés (${s.ds.length})</summary><div class="list">${s.ds.map(d=>`<div class="li" data-open="${d.id}"><div class="grow"><div class="t">${esc(fullName(d))}</div><div class="small muted">${type==='fournisseur'?'Matériel '+eur(d.materiel):type==='poseur'?'Pose '+eur(d.pose):type==='regie'?'Commission '+(d.regieMontant==null||d.regieMontant===''?'à renseigner':eur(d.regieMontant)):'Commission '+eur(d.commission)+' · Bonus MPR '+eur(d.bonusApporteur)}</div></div>${badge(d.statut)}</div>`).join('')||'<div class="muted small">Aucun dossier.</div>'}</div></details>
+    <details><summary>Dossiers liés (${s.ds.length})</summary><div class="list">${s.ds.map(d=>`<div class="li" data-open="${d.id}"><div class="grow"><div class="t">${esc(fullName(d))}</div><div class="small muted">${type==='fournisseur'?'Matériel '+eur(d.materiel):type==='poseur'?'Pose '+eur(d.pose):type==='regie'?((d.regieMontant==null||d.regieMontant==='')&&(d.regieMontantMPR==null||d.regieMontantMPR==='')?'Commission à renseigner':'CEE '+eur(d.regieMontant)+' · MPR '+eur(d.regieMontantMPR)):'Commission '+eur(d.commission)+' · Bonus MPR '+eur(d.bonusApporteur)}</div></div>${badge(d.statut)}</div>`).join('')||'<div class="muted small">Aucun dossier.</div>'}</div></details>
   </div>`;
 }
 
@@ -1474,15 +1478,18 @@ function dupAlert(d){
 /* ============ Régies : stats côté Sayor ============ */
 const REGIE_STATUTS = STATUTS;
 const isRegie = () => !!S.me.regie;
-const regieCout = d => d.regie ? n0(d.regieMontant) : 0;
+const regieCout = d => d.regie ? n0(d.regieMontant)+n0(d.regieMontantMPR) : 0;
 function regieStats(r){
   const ds=S.dossiers.filter(d=>d.regie===r.nom);
-  const act=ds.filter(actif);
-  const du=act.filter(d=>d.statut==='Installé').reduce((a,d)=>a+n0(d.regieMontant),0);
-  const avenir=act.filter(d=>d.statut!=='Installé').reduce((a,d)=>a+n0(d.regieMontant),0);
-  const sansCom=act.filter(d=>d.regieMontant==null||d.regieMontant==='').length;
-  const paye=paidTo('regie',r.nom);
-  return {ds,du,avenir,sansCom,paye,reste:du-paye};
+  const act=ds.filter(actif), inst=act.filter(d=>d.statut==='Installé');
+  const duCEE=inst.reduce((a,d)=>a+n0(d.regieMontant),0), duMPR=inst.reduce((a,d)=>a+n0(d.regieMontantMPR),0);
+  const du=duCEE+duMPR;
+  const avenir=act.filter(d=>d.statut!=='Installé').reduce((a,d)=>a+regieCout(d),0);
+  const sansCom=act.filter(d=>(d.regieMontant==null||d.regieMontant==='')&&(d.regieMontantMPR==null||d.regieMontantMPR==='')).length;
+  const pays=S.paiements.filter(p=>p.type==='regie'&&p.cible===r.nom);
+  const payeCEE=pays.filter(p=>p.objet!=='MPR').reduce((a,p)=>a+n0(p.montant),0), payeMPR=pays.filter(p=>p.objet==='MPR').reduce((a,p)=>a+n0(p.montant),0);
+  const paye=payeCEE+payeMPR;
+  return {ds,duCEE,duMPR,du,avenir,sansCom,payeCEE,payeMPR,paye,reste:du-paye,resteCEE:duCEE-payeCEE,resteMPR:duMPR-payeMPR};
 }
 
 /* ============ Espace régie (partenaire) ============ */
