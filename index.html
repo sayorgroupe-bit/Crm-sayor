@@ -861,13 +861,13 @@ function renderDList(){
     $('#dtb').innerHTML=`<tr><td colspan="10">${e}</td></tr>`; $('#dcards').innerHTML=e; return; }
   const cat=(c,st,m)=>`<span class="chipcat">${dotC(c)}<span class="${st==='Payé'?'paid':'muted'}">${esc(st||'—')}</span></span>`;
   $('#dtb').innerHTML = list.map(d=>{ const mg=margePrev(d); return `<tr data-open="${d.id}">
-    <td class="client-cell"><b>${esc(fullName(d))}</b><span class="small muted">${esc([d.client?.cp,d.client?.ville].filter(Boolean).join(' '))}${d.occupant==='locataire'?' · Locataire':''}</span></td>
+    <td class="client-cell"><b>${esc(fullName(d))}</b>${dupTag(d)}<span class="small muted">${esc([d.client?.cp,d.client?.ville].filter(Boolean).join(' '))}${d.occupant==='locataire'?' · Locataire':''}</span></td>
     <td>${badge(d.statut)}</td><td class="num">${d.datePose?fmtDate(d.datePose,{day:'2-digit',month:'2-digit',year:'numeric'}):'<span class="muted">À planifier</span>'}</td>
     <td>${d.regie?`<span class="tag">Régie</span> ${esc(d.regie)}`:esc(d.commercial||'—')}</td><td>${esc(d.poseur||'—')}</td><td>${esc(d.marque||'—')}</td>
     <td>${cat(d.ceeCouleur,d.ceeStatut)}</td><td>${cat(d.mprCouleur,d.mprStatut)}</td>
     <td class="r num">${eur(caPrev(d))}</td><td class="r num ${mg<0?'neg':''}">${eur(mg)}</td></tr>`; }).join('');
   $('#dcards').innerHTML = list.map(d=>`<div class="dcard" data-open="${d.id}">
-    <div class="l1"><div><b>${esc(fullName(d))}</b><div class="small muted">${esc([d.client?.cp,d.client?.ville].filter(Boolean).join(' '))}</div></div>${badge(d.statut)}</div>
+    <div class="l1"><div><b>${esc(fullName(d))}</b>${dupTag(d)}<div class="small muted">${esc([d.client?.cp,d.client?.ville].filter(Boolean).join(' '))}</div></div>${badge(d.statut)}</div>
     <div class="l2"><span>${ic('cal','style="width:14px;height:14px;vertical-align:-2px"')} ${d.datePose?fmtDate(d.datePose):'À planifier'}</span><span>${d.regie?'Régie '+esc(d.regie):esc(d.commercial||'—')}</span>${d.poseur?`<span>${esc(d.poseur)}</span>`:''}
     <span class="chipcat">CEE ${dotC(d.ceeCouleur)} ${esc(d.ceeStatut||'—')}</span><span class="chipcat">MPR ${dotC(d.mprCouleur)} ${esc(d.mprStatut||'—')}</span><span class="num">Marge ${eur(margePrev(d))}</span></div></div>`).join('');
 }
@@ -899,7 +899,7 @@ function openDossier(id){
   const ro = S.canWrite?'':'disabled';
   $('#sheet').innerHTML = `<div class="sheet-in" role="dialog" aria-modal="true" aria-label="Dossier">
     <div class="sheet-head"><button class="btn ghost" id="sh-close" aria-label="Fermer">${ic('x')}</button><h2 id="sh-title">${d?esc(fullName(d)):'Nouveau dossier'}</h2>${d?badge(d.statut):''}</div>
-    <form class="sheet-body" id="dform" autocomplete="off">
+    <form class="sheet-body" id="dform" autocomplete="off">${dupAlert(d)}
       ${d?`<div class="summary" id="sum"></div>`:''}
       <fieldset ${ro}><legend>Occupant</legend>
         <div class="toggle" role="radiogroup" aria-label="Type d’occupant">
@@ -1412,6 +1412,7 @@ const TECH = [
   ['zone','Zone climatique','sel',['H1','H2','H3']],
   ['chauffage','Chauffage actuel','sel',['Fioul','Gaz','GPL','Charbon','Électrique','Bois','Autre']],
   ['emetteurs','Radiateurs / émetteurs','sel',['Radiateurs en fonte','Radiateurs en acier','Radiateurs en aluminium','Plancher chauffant','Mixte','Autre']],
+  ['radiateurs','Nombre de radiateurs','num'],
   ['eauChaude','Eau chaude actuelle','sel',['Par la chaudière','Ballon électrique','Ballon thermodynamique','Chauffe-eau gaz','Autre']],
   ['compteur','Compteur électrique','sel',['Monophasé','Triphasé']],
   ['kva','Puissance du compteur (kVA)','num'],
@@ -1445,6 +1446,29 @@ function bindTech(form){
   z.addEventListener('change',()=>{ z.dataset.touched='1'; });
   cp.addEventListener('input',upd);
   if(!z.value) upd();
+}
+
+/* ============ Doublons possibles (même téléphone, même mail, ou même nom + code postal) ============ */
+const dupKeys = d => { const c=d.client||{}, k=[];
+  const tel=String(c.tel||'').replace(/\D/g,'').slice(-9); if(tel.length===9) k.push('t'+tel);
+  const mail=String(c.email||'').trim().toLowerCase(); if(mail.includes('@')) k.push('m'+mail);
+  const nom=norm(c.nom||''), cp=String(c.cp||'').trim(); if(nom && cp) k.push('n'+nom+'|'+cp);
+  return k; };
+function dupIndex(){
+  if(dupIndex.src===S.dossiers) return dupIndex.map;
+  const byKey={}, map={};
+  S.dossiers.forEach(d=>{ if(d.statut==='Annulé') return; dupKeys(d).forEach(k=>{ (byKey[k] ||= []).push(d.id); }); });
+  Object.values(byKey).forEach(ids=>{ if(ids.length<2) return; ids.forEach(a=>{ ids.forEach(b=>{ if(a!==b){ (map[a] ||= new Set()).add(b); } }); }); });
+  dupIndex.src=S.dossiers; dupIndex.map=map; return map;
+}
+const dupsOf = d => isRegie() ? [] : [...(dupIndex()[d.id]||[])].map(id=>S.dossiers.find(x=>x.id===id)).filter(Boolean);
+const dupTag = d => dupsOf(d).length ? ` <span class="tag" style="background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad)">Doublon possible</span>` : '';
+function dupAlert(d){
+  const l=d?dupsOf(d):[]; if(!l.length) return '';
+  return `<div class="panel" style="border-color:var(--bad);background:color-mix(in srgb,var(--bad) 7%,transparent);padding:12px 14px;margin-bottom:14px">
+    <b style="color:var(--bad)">Doublon possible</b><div class="small" style="margin-top:4px">Même téléphone, même mail ou même nom et code postal que :</div>
+    <div class="list" style="margin-top:6px">${l.map(x=>`<div class="li" data-open="${x.id}"><div class="grow"><div class="t">${esc(fullName(x))}</div><div class="small muted">${esc([x.client?.cp,x.client?.ville].filter(Boolean).join(' '))}${x.regie?' · Régie '+esc(x.regie):x.commercial?' · '+esc(x.commercial):''}</div></div>${badge(x.statut)}</div>`).join('')}</div>
+    <div class="small muted" style="margin-top:6px">Décidez quel dossier garder, puis passez l’autre en « Annulé ».</div></div>`;
 }
 
 /* ============ Régies : stats côté Sayor ============ */
@@ -1622,6 +1646,7 @@ function autoRappels(){
   const out=[]; const today=TODAY(); const in7=ymd(new Date(Date.now()+7*864e5));
   S.dossiers.filter(actif).forEach(d=>{ const n=fullName(d);
     if(d.statut==='À confirmer') out.push({cat:'Dossiers à confirmer',txt:`Confirmer le dossier ${n}`,id:d.id,c:'var(--s-aconf)'});
+    { const dl=dupsOf(d); if(dl.length && (d.regie || dl.every(x=>!x.regie && x.id<d.id))) out.push({cat:'Doublons possibles',txt:`${n}${d.regie?' ('+d.regie+')':''} : même client qu’un autre dossier`,id:d.id,c:'var(--bad)'}); }
     if(d.statut==='Docs reçus') out.push({cat:'Docs reçus : pose à placer',txt:`${n}${d.regie?' ('+d.regie+')':''} : documents reçus, placer la pose`,id:d.id,c:'var(--s-drecus)'});
     if(d.statut==='Installé' && d.regie && (d.regieMontant==null||d.regieMontant==='')) out.push({cat:'Commissions régie à renseigner',txt:`${n} : commission ${d.regie} à renseigner`,id:d.id,c:'var(--warn)'});
     if(d.statut==='En attente') out.push({cat:'Dossiers en attente',txt:`${n} est en attente`,id:d.id,c:'var(--s-attente)'});
