@@ -664,11 +664,12 @@ const margePrev = d => caPrev(d) - (actif(d)?couts(d):0);
 function totals(list=S.dossiers, global=(list===S.dossiers)){
   const t={ceeEnc:0,ceePrev:0,mprEnc:0,mprPrev:0,racEnc:0,racPrev:0,materiel:0,pose:0,frais:0,bonus:0,commission:0,divers:0,surcom:0,regie:0};
   list.filter(actif).forEach(d=>{ t.ceeEnc+=ceeEnc(d); t.ceePrev+=ceeMontant(d); t.mprEnc+=mprEnc(d); t.mprPrev+=mprMontant(d); t.racEnc+=racEnc(d); t.racPrev+=racMontant(d);
-    t.materiel+=n0(d.materiel); t.pose+=n0(d.pose); t.frais+=n0(d.frais); t.bonus+=n0(d.bonusApporteur); t.commission+=n0(d.commission); t.surcom+=surcomTotal(d); t.regie+=regieCout(d); t.divers+=fraisLies(d); });
+    t.materiel+=n0(d.materiel); t.pose+=n0(d.pose); t.frais+=n0(d.frais); t.bonus+=n0(d.bonusApporteur); t.commission+=n0(d.commission); t.surcom+=surcomTotal(d); t.regie+=regieCout(d); t.regieMPR=(t.regieMPR||0)+(d.regie?n0(d.regieMontantMPR):0); t.divers+=fraisLies(d); });
   if(global) t.divers+=S.fraisDivers.filter(f=>!f.dossierId || !S.dossiers.some(d=>d.id===f.dossierId)).reduce((a,f)=>a+n0(f.montant),0);
   t.enc=t.ceeEnc+t.mprEnc+t.racEnc; t.prev=t.ceePrev+t.mprPrev+t.racPrev;
   t.couts=t.materiel+t.pose+t.frais+t.bonus+t.commission+t.surcom+t.regie+t.divers;
   t.marge=t.prev-t.couts; t.margeEnc=t.enc-t.couts;
+  t.margeCEE=t.ceePrev-(t.couts-t.bonus-(t.regieMPR||0));
   return t;
 }
 const paidTo = (type,nom) => S.paiements.filter(p=>p.type===type&&p.cible===nom).reduce((a,p)=>a+n0(p.montant),0);
@@ -784,11 +785,13 @@ function vDashboard(v){
       <div class="legend">${STATUTS.map(s=>`<button data-fstatut="${esc(s)}"><span class="dot" style="background:var(${STATUT_VAR[s]})"></span>${s} <b>${counts[s]}</b></button>`).join('')}</div>
     </div>
     <div class="panel"><div class="panel-head"><h2>Marge</h2></div>
-      <div class="ent-figs" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+      <div class="ent-figs" style="grid-template-columns:repeat(auto-fit,minmax(105px,1fr))">
         <div><span class="label">Marge prévisionnelle</span><b class="${t.marge<0?'neg':''}">${eur(t.marge)}</b></div>
+        <div><span class="label">Marge CEE seule</span><b class="${t.margeCEE<0?'neg':''}">${eur(t.margeCEE)}</b></div>
         <div><span class="label">Coûts engagés</span><b>${eur(t.couts)}</b></div>
       </div>
-      <p class="hint" style="margin:10px 0 0">CA prévu (CEE + MPR) moins matériel, pose, frais, bonus apporteur et commissions.</p>
+      <p class="hint" style="margin:10px 0 0">Marge CEE seule : ce que vous gagnez avec les primes CEE uniquement, sans le MPR ni le reste à charge.</p>
+      ${(()=>{ const r=npResume(S.dossiers.filter(nonPaye)); return r.n?`<button class="btn sm" data-np style="margin-top:10px">${r.n} dossier${r.n>1?'s':''} installé${r.n>1?'s':''} non payé${r.n>1?'s':''} · ${eur(r.tot)} à encaisser</button>`:''; })()}
     </div>
   </div>
   <div style="height:14px"></div>
@@ -801,6 +804,7 @@ function vDashboard(v){
       <div class="rem-group">${rem.slice(0,7).map(remLi).join('')||`<div class="empty">Rien à signaler.</div>`}</div></div>
   </div>`;
   $$('[data-fstatut]',v).forEach(b=>b.onclick=()=>{ S.fStatut=b.dataset.fstatut; go('dossiers'); });
+  $$('[data-np]',v).forEach(b=>b.onclick=()=>{ S.fPay='np'; S.fStatut=''; go('dossiers'); });
 }
 function moneyBlock(t){
   const col=(lab,enc,prev)=>`<div><span class="label">${lab}</span>
@@ -836,27 +840,39 @@ function vDossiers(v){
   <div class="toolbar">
     <label class="search">${ic('search')}<input id="q" type="search" placeholder="Rechercher un client, une ville, un téléphone…" value="${esc(S.q)}" autocomplete="off"></label>
     <select id="fCom" class="inp" aria-label="Commercial ou régie"><option value="">Tous les commerciaux et régies</option>${coms.map(c=>`<option ${S.fCom===c?'selected':''}>${esc(c)}</option>`).join('')}${S.cfg.regies.length?`<optgroup label="Régies">${S.cfg.regies.map(r=>`<option value="R:${esc(r.nom)}" ${S.fCom==='R:'+r.nom?'selected':''}>Régie ${esc(r.nom)}</option>`).join('')}</optgroup>`:''}</select>
+    <select id="fPay" class="inp" aria-label="Paiement"><option value="">Tous les paiements</option><option value="np" ${S.fPay==='np'?'selected':''}>Installés non payés</option><option value="cee" ${S.fPay==='cee'?'selected':''}>Installés · CEE non payé</option><option value="mpr" ${S.fPay==='mpr'?'selected':''}>Installés · MPR non payé</option></select>
   </div>
   <div class="chips" id="chips"></div>
+  <div id="paysum"></div>
   <div class="table-wrap dossiers"><table><thead><tr><th>Client</th><th>Statut</th><th>Date de pose</th><th>Commercial</th><th>Poseur</th><th>PAC</th><th>CEE</th><th>MPR</th><th class="r">CA prévu</th><th class="r">Marge</th></tr></thead><tbody id="dtb"></tbody></table></div>
   <div class="cards" id="dcards"></div>`;
   $('#q').addEventListener('input',e=>{ S.q=e.target.value; renderDList(); });
   $('#fCom').addEventListener('change',e=>{ S.fCom=e.target.value; renderDList(); });
+  $('#fPay').addEventListener('change',e=>{ S.fPay=e.target.value; renderDList(); });
   renderDList();
+}
+const ceeDu = d => ceeMontant(d)>0 && d.ceeStatut!=='Payé';
+const mprDu = d => mprMontant(d)>0 && !['Payé','Non concerné'].includes(d.mprStatut);
+const nonPaye = d => d.statut==='Installé' && (ceeDu(d)||mprDu(d));
+const payOk = d => !S.fPay || (S.fPay==='np' ? nonPaye(d) : d.statut==='Installé' && (S.fPay==='cee' ? ceeDu(d) : mprDu(d)));
+function npResume(list){
+  const cee=list.reduce((a,d)=>a+(ceeDu(d)?ceeMontant(d):0),0), mpr=list.reduce((a,d)=>a+(mprDu(d)?mprMontant(d):0),0);
+  return {n:list.length, cee, mpr, tot:cee+mpr};
 }
 const comOk = d => !S.fCom || (S.fCom.indexOf('R:')===0 ? d.regie===S.fCom.slice(2) : d.commercial===S.fCom);
 function filtered(){
   const q=norm(S.q);
-  return S.dossiers.filter(d=>(!S.fStatut||d.statut===S.fStatut)&&comOk(d)&&
+  return S.dossiers.filter(d=>(!S.fStatut||d.statut===S.fStatut)&&comOk(d)&&payOk(d)&&
     (!q || norm([d.client?.nom,d.client?.prenom,d.client?.ville,d.client?.cp,d.client?.tel,d.proprietaire?.nom,d.commercial,d.regie,d.poseur,d.notes].join(' ')).includes(q)))
    .sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||'') || fullName(a).localeCompare(fullName(b)));
 }
 function renderDList(){
-  const base=S.dossiers.filter(comOk);
+  const base=S.dossiers.filter(d=>comOk(d)&&payOk(d));
   $('#chips').innerHTML = `<button class="chip" data-st="" aria-pressed="${!S.fStatut}">Tous <b>${base.length}</b></button>`+
     STATUTS.map(s=>{ const n=base.filter(d=>d.statut===s).length; return `<button class="chip" data-st="${esc(s)}" aria-pressed="${S.fStatut===s}"><span class="dot" style="background:var(${STATUT_VAR[s]})"></span>${s} <b>${n}</b></button>`; }).join('');
   $$('#chips [data-st]').forEach(b=>b.onclick=()=>{ S.fStatut=b.dataset.st; renderDList(); });
   const list=filtered();
+  if($('#paysum')){ if(S.fPay){ const r=npResume(list); $('#paysum').innerHTML=`<div class="panel" style="padding:10px 14px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline"><b>${r.n} dossier${r.n>1?'s':''} installé${r.n>1?'s':''} pas encore payé${r.n>1?'s':''}</b><span>À encaisser : <b class="num">${eur(r.tot)}</b></span><span class="muted small">CEE ${eur(r.cee)} · MPR ${eur(r.mpr)}</span><button class="btn sm ghost" id="np-clear" style="margin-left:auto">Retirer le filtre</button></div>`; $('#np-clear').onclick=()=>{ S.fPay=''; vDossiers($('#view')); }; } else $('#paysum').innerHTML=''; }
   if(!list.length){ const e=`<div class="empty">${S.loaded? (S.dossiers.length?'Aucun dossier ne correspond à ce filtre.':'Aucun dossier pour l’instant. Créez le premier avec « Nouveau dossier ».'):'Chargement…'}</div>`;
     $('#dtb').innerHTML=`<tr><td colspan="10">${e}</td></tr>`; $('#dcards').innerHTML=e; return; }
   const cat=(c,st,m)=>`<span class="chipcat">${dotC(c)}<span class="${st==='Payé'?'paid':'muted'}">${esc(st||'—')}</span></span>`;
@@ -1194,7 +1210,7 @@ function vFinances(v){
     <div class="panel"><div class="panel-head"><h2>Coûts des dossiers</h2></div>
       ${line('Matériel',t.materiel)}${line('Pose',t.pose)}${line('Frais supplémentaires',t.frais)}${line('Bonus apporteur MPR',t.bonus)}${line('Commissions commerciales',t.commission)}${line('Apporteurs supplémentaires',t.surcom)}${t.regie?line('Commissions régies',t.regie):''}${line('Frais divers',t.divers)}${line('Total des coûts',t.couts)}${stockVal()?line('PAC en stock, pas encore posées (hors marge)',stockVal()):''}</div>
     <div class="panel"><div class="panel-head"><h2>Marge</h2></div>
-      ${line('CA prévisionnel',t.prev)}${line('− Coûts',t.couts)}${line('Marge prévisionnelle',t.marge,t.marge<0?'neg':'pos')}${line('Marge sur CA encaissé',t.margeEnc,t.margeEnc<0?'neg':'pos')}
+      ${line('CA prévisionnel',t.prev)}${line('− Coûts',t.couts)}${line('Marge prévisionnelle',t.marge,t.marge<0?'neg':'pos')}${line('Marge sur CA encaissé',t.margeEnc,t.margeEnc<0?'neg':'pos')}${line('Marge CEE seule (sans MPR ni reste à charge)',t.margeCEE,t.margeCEE<0?'neg':'pos')}
       <p class="hint">La marge sur encaissé déduit tous les coûts du seul CA déjà reçu.</p></div>
     <div class="panel"><div class="panel-head"><h2>Trésorerie</h2></div>
       ${line('CA encaissé',t.enc)}${line('Payé aux fournisseurs',dec.fournisseur)}${line('Payé aux poseurs',dec.poseur)}${line('Payé aux commerciaux',dec.commercial)}${dec.regie?line('Payé aux régies',dec.regie):''}${line('Solde',t.enc-decTot,t.enc-decTot<0?'neg':'pos')}</div>
