@@ -791,7 +791,6 @@ function vDashboard(v){
         <div><span class="label">Coûts engagés</span><b>${eur(t.couts)}</b></div>
       </div>
       <p class="hint" style="margin:10px 0 0">Marge CEE seule : ce que vous gagnez avec les primes CEE uniquement, sans le MPR ni le reste à charge.</p>
-      ${(()=>{ const r=npResume(S.dossiers.filter(nonPaye)); return r.n?`<button class="btn sm" data-np style="margin-top:10px">${r.n} dossier${r.n>1?'s':''} installé${r.n>1?'s':''} non payé${r.n>1?'s':''} · ${eur(r.tot)} à encaisser</button>`:''; })()}
     </div>
   </div>
   <div style="height:14px"></div>
@@ -804,7 +803,6 @@ function vDashboard(v){
       <div class="rem-group">${rem.slice(0,7).map(remLi).join('')||`<div class="empty">Rien à signaler.</div>`}</div></div>
   </div>`;
   $$('[data-fstatut]',v).forEach(b=>b.onclick=()=>{ S.fStatut=b.dataset.fstatut; go('dossiers'); });
-  $$('[data-np]',v).forEach(b=>b.onclick=()=>{ S.fPay='np'; S.fStatut=''; go('dossiers'); });
 }
 function moneyBlock(t){
   const col=(lab,enc,prev)=>`<div><span class="label">${lab}</span>
@@ -839,8 +837,8 @@ function vDossiers(v){
   v.innerHTML = topBar('Dossiers',`<span class="muted small hide-m">${S.dossiers.length} dossiers</span>`)+`
   <div class="toolbar">
     <label class="search">${ic('search')}<input id="q" type="search" placeholder="Rechercher un client, une ville, un téléphone…" value="${esc(S.q)}" autocomplete="off"></label>
-    <select id="fCom" class="inp" aria-label="Commercial ou régie"><option value="">Tous les commerciaux et régies</option>${coms.map(c=>`<option ${S.fCom===c?'selected':''}>${esc(c)}</option>`).join('')}${S.cfg.regies.length?`<optgroup label="Régies">${S.cfg.regies.map(r=>`<option value="R:${esc(r.nom)}" ${S.fCom==='R:'+r.nom?'selected':''}>Régie ${esc(r.nom)}</option>`).join('')}</optgroup>`:''}</select>
-    <select id="fPay" class="inp" aria-label="Paiement"><option value="">Tous les paiements</option><option value="np" ${S.fPay==='np'?'selected':''}>Installés non payés</option><option value="cee" ${S.fPay==='cee'?'selected':''}>Installés · CEE non payé</option><option value="mpr" ${S.fPay==='mpr'?'selected':''}>Installés · MPR non payé</option></select>
+    <select id="fCom" class="inp" aria-label="Commercial"><option value="">Tous les commerciaux</option>${coms.map(c=>`<option ${S.fCom===c?'selected':''}>${esc(c)}</option>`).join('')}</select>${S.cfg.regies.length?`<select id="fReg" class="inp" aria-label="Régie"><option value="">Toutes les régies</option><option value="*" ${S.fReg==='*'?'selected':''}>Dossiers des régies</option><option value="-" ${S.fReg==='-'?'selected':''}>Hors régies</option>${S.cfg.regies.map(r=>`<option value="${esc(r.nom)}" ${S.fReg===r.nom?'selected':''}>Régie ${esc(r.nom)}</option>`).join('')}</select>`:''}
+    <select id="fPay" class="inp" aria-label="Paiement CEE"><option value="">Paiement CEE : tous</option><option value="np" ${S.fPay==='np'?'selected':''}>Installés · CEE pas encore payé</option><option value="dep" ${S.fPay==='dep'?'selected':''}>… dont dossier déposé</option><option value="nondep" ${S.fPay==='nondep'?'selected':''}>… dont pas encore déposé</option></select>
   </div>
   <div class="chips" id="chips"></div>
   <div id="paysum"></div>
@@ -849,17 +847,19 @@ function vDossiers(v){
   $('#q').addEventListener('input',e=>{ S.q=e.target.value; renderDList(); });
   $('#fCom').addEventListener('change',e=>{ S.fCom=e.target.value; renderDList(); });
   $('#fPay').addEventListener('change',e=>{ S.fPay=e.target.value; renderDList(); });
+  $('#fReg')?.addEventListener('change',e=>{ S.fReg=e.target.value; renderDList(); });
   renderDList();
 }
 const ceeDu = d => ceeMontant(d)>0 && d.ceeStatut!=='Payé';
 const mprDu = d => mprMontant(d)>0 && !['Payé','Non concerné'].includes(d.mprStatut);
 const nonPaye = d => d.statut==='Installé' && (ceeDu(d)||mprDu(d));
-const payOk = d => !S.fPay || (S.fPay==='np' ? nonPaye(d) : d.statut==='Installé' && (S.fPay==='cee' ? ceeDu(d) : mprDu(d)));
+const payOk = d => !S.fPay || (d.statut==='Installé' && ceeDu(d) && (S.fPay==='np' || (S.fPay==='dep' ? d.ceeStatut==='Dossier déposé' : d.ceeStatut!=='Dossier déposé')));
 function npResume(list){
-  const cee=list.reduce((a,d)=>a+(ceeDu(d)?ceeMontant(d):0),0), mpr=list.reduce((a,d)=>a+(mprDu(d)?mprMontant(d):0),0);
-  return {n:list.length, cee, mpr, tot:cee+mpr};
+  const cee=list.reduce((a,d)=>a+(ceeDu(d)?ceeMontant(d):0),0);
+  const dep=list.filter(d=>d.ceeStatut==='Dossier déposé').length;
+  return {n:list.length, cee, dep, nondep:list.length-dep};
 }
-const comOk = d => !S.fCom || (S.fCom.indexOf('R:')===0 ? d.regie===S.fCom.slice(2) : d.commercial===S.fCom);
+const comOk = d => (!S.fCom || d.commercial===S.fCom) && (!S.fReg || (S.fReg==='*' ? !!d.regie : S.fReg==='-' ? !d.regie : d.regie===S.fReg));
 function filtered(){
   const q=norm(S.q);
   return S.dossiers.filter(d=>(!S.fStatut||d.statut===S.fStatut)&&comOk(d)&&payOk(d)&&
@@ -872,7 +872,7 @@ function renderDList(){
     STATUTS.map(s=>{ const n=base.filter(d=>d.statut===s).length; return `<button class="chip" data-st="${esc(s)}" aria-pressed="${S.fStatut===s}"><span class="dot" style="background:var(${STATUT_VAR[s]})"></span>${s} <b>${n}</b></button>`; }).join('');
   $$('#chips [data-st]').forEach(b=>b.onclick=()=>{ S.fStatut=b.dataset.st; renderDList(); });
   const list=filtered();
-  if($('#paysum')){ if(S.fPay){ const r=npResume(list); $('#paysum').innerHTML=`<div class="panel" style="padding:10px 14px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline"><b>${r.n} dossier${r.n>1?'s':''} installé${r.n>1?'s':''} pas encore payé${r.n>1?'s':''}</b><span>À encaisser : <b class="num">${eur(r.tot)}</b></span><span class="muted small">CEE ${eur(r.cee)} · MPR ${eur(r.mpr)}</span><button class="btn sm ghost" id="np-clear" style="margin-left:auto">Retirer le filtre</button></div>`; $('#np-clear').onclick=()=>{ S.fPay=''; vDossiers($('#view')); }; } else $('#paysum').innerHTML=''; }
+  if($('#paysum')){ if(S.fPay){ const r=npResume(list); $('#paysum').innerHTML=`<div class="panel" style="padding:10px 14px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline"><b>${r.n} dossier${r.n>1?'s':''} installé${r.n>1?'s':''} · CEE pas encore payé</b><span>CEE à encaisser : <b class="num">${eur(r.cee)}</b></span><span class="muted small">${r.dep} déposé${r.dep>1?'s':''} · ${r.nondep} pas encore déposé${r.nondep>1?'s':''}</span><button class="btn sm ghost" id="np-clear" style="margin-left:auto">Retirer le filtre</button></div>`; $('#np-clear').onclick=()=>{ S.fPay=''; vDossiers($('#view')); }; } else $('#paysum').innerHTML=''; }
   if(!list.length){ const e=`<div class="empty">${S.loaded? (S.dossiers.length?'Aucun dossier ne correspond à ce filtre.':'Aucun dossier pour l’instant. Créez le premier avec « Nouveau dossier ».'):'Chargement…'}</div>`;
     $('#dtb').innerHTML=`<tr><td colspan="10">${e}</td></tr>`; $('#dcards').innerHTML=e; return; }
   const cat=(c,st,m)=>`<span class="chipcat">${dotC(c)}<span class="${st==='Payé'?'paid':'muted'}">${esc(st||'—')}</span></span>`;
