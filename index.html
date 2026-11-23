@@ -1468,17 +1468,20 @@ function bindTech(form){
   if(!z.value) upd();
 }
 
-/* ============ Doublons possibles (même téléphone, même mail, ou même nom + code postal) ============ */
-const dupKeys = d => { const c=d.client||{}, k=[];
-  const tel=String(c.tel||'').replace(/\D/g,'').slice(-9); if(tel.length===9) k.push('t'+tel);
-  const mail=String(c.email||'').trim().toLowerCase(); if(mail.includes('@')) k.push('m'+mail);
-  const nom=norm(c.nom||''), cp=String(c.cp||'').trim(); if(nom && cp) k.push('n'+nom+'|'+cp);
-  return k; };
+/* ============ Doublons possibles ============ */
+/* Même client = même nom ET même prénom (ou prénom vide d'un côté), ET au moins un point commun : téléphone, mail ou code postal. */
+const dupInfo = d => { const c=d.client||{};
+  return { nom:norm(c.nom||''), prenom:norm(c.prenom||''), tel:String(c.tel||'').replace(/\D/g,'').slice(-9), mail:String(c.email||'').trim().toLowerCase(), cp:String(c.cp||'').trim() }; };
+function memeClient(a,b){
+  if(!a.nom || a.nom!==b.nom) return false;
+  if(a.prenom && b.prenom && a.prenom!==b.prenom) return false;
+  return (a.tel.length===9 && a.tel===b.tel) || (a.mail.includes('@') && a.mail===b.mail) || (!!a.cp && a.cp===b.cp);
+}
 function dupIndex(){
   if(dupIndex.src===S.dossiers) return dupIndex.map;
-  const byKey={}, map={};
-  S.dossiers.forEach(d=>{ if(d.statut==='Annulé') return; dupKeys(d).forEach(k=>{ (byKey[k] ||= []).push(d.id); }); });
-  Object.values(byKey).forEach(ids=>{ if(ids.length<2) return; ids.forEach(a=>{ ids.forEach(b=>{ if(a!==b){ (map[a] ||= new Set()).add(b); } }); }); });
+  const parNom={}, map={};
+  S.dossiers.forEach(d=>{ if(d.statut==='Annulé') return; const i=dupInfo(d); if(i.nom) (parNom[i.nom] ||= []).push([d.id,i]); });
+  Object.values(parNom).forEach(l=>{ for(let x=0;x<l.length;x++) for(let y=x+1;y<l.length;y++){ if(memeClient(l[x][1],l[y][1])){ (map[l[x][0]] ||= new Set()).add(l[y][0]); (map[l[y][0]] ||= new Set()).add(l[x][0]); } } });
   dupIndex.src=S.dossiers; dupIndex.map=map; return map;
 }
 const dupIgnored = (a,b) => (a.dupIgnore||[]).includes(b.id) || (b.dupIgnore||[]).includes(a.id);
@@ -1487,7 +1490,7 @@ const dupTag = d => dupsOf(d).length ? ` <span class="tag" style="background:col
 function dupAlert(d){
   const l=d?dupsOf(d):[]; if(!l.length) return '';
   return `<div class="panel" style="border-color:var(--bad);background:color-mix(in srgb,var(--bad) 7%,transparent);padding:12px 14px;margin-bottom:14px">
-    <b style="color:var(--bad)">Doublon possible</b><div class="small" style="margin-top:4px">Même téléphone, même mail ou même nom et code postal que :</div>
+    <b style="color:var(--bad)">Doublon possible</b><div class="small" style="margin-top:4px">Même nom et prénom, avec le même téléphone, mail ou code postal que :</div>
     <div class="list" style="margin-top:6px">${l.map(x=>`<div class="li" data-open="${x.id}"><div class="grow"><div class="t">${esc(fullName(x))}</div><div class="small muted">${esc([x.client?.cp,x.client?.ville].filter(Boolean).join(' '))}${x.regie?' · Régie '+esc(x.regie):x.commercial?' · '+esc(x.commercial):''}</div></div>${badge(x.statut)}${S.canWrite?`<button type="button" class="btn sm" data-nodup="${x.id}">Pas un doublon</button>`:''}</div>`).join('')}</div>
     <div class="small muted" style="margin-top:6px">Si c’est le même client, gardez un dossier et passez l’autre en « Annulé ». Sinon, touchez « Pas un doublon » : l’alerte disparaît pour ces deux dossiers.</div></div>`;
 }
