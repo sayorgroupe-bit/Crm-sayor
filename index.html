@@ -839,6 +839,7 @@ function vDossiers(v){
     <label class="search">${ic('search')}<input id="q" type="search" placeholder="Rechercher un client, une ville, un téléphone…" value="${esc(S.q)}" autocomplete="off"></label>
     <select id="fCom" class="inp" aria-label="Commercial"><option value="">Tous les commerciaux</option>${coms.map(c=>`<option ${S.fCom===c?'selected':''}>${esc(c)}</option>`).join('')}</select>${S.cfg.regies.length?`<select id="fReg" class="inp" aria-label="Régie"><option value="">Toutes les régies</option><option value="*" ${S.fReg==='*'?'selected':''}>Dossiers des régies</option><option value="-" ${S.fReg==='-'?'selected':''}>Hors régies</option>${S.cfg.regies.map(r=>`<option value="${esc(r.nom)}" ${S.fReg===r.nom?'selected':''}>Régie ${esc(r.nom)}</option>`).join('')}</select>`:''}
     <select id="fPay" class="inp" aria-label="Paiement CEE"><option value="">Paiement CEE : tous</option><option value="np" ${S.fPay==='np'?'selected':''}>Installés · CEE pas encore payé</option><option value="dep" ${S.fPay==='dep'?'selected':''}>… dont dossier déposé</option><option value="nondep" ${S.fPay==='nondep'?'selected':''}>… dont pas encore déposé</option></select>
+    <select id="fBL" class="inp" aria-label="Bon de livraison"><option value="">BL : tous</option><option value="manque" ${S.fBL==='manque'?'selected':''}>Manque le BL</option><option value="ok" ${S.fBL==='ok'?'selected':''}>BL fait</option></select>
   </div>
   <div class="chips" id="chips"></div>
   <div id="paysum"></div>
@@ -848,6 +849,7 @@ function vDossiers(v){
   $('#fCom').addEventListener('change',e=>{ S.fCom=e.target.value; renderDList(); });
   $('#fPay').addEventListener('change',e=>{ S.fPay=e.target.value; renderDList(); });
   $('#fReg')?.addEventListener('change',e=>{ S.fReg=e.target.value; renderDList(); });
+  $('#fBL').addEventListener('change',e=>{ S.fBL=e.target.value; renderDList(); });
   renderDList();
 }
 const ceeDu = d => ceeMontant(d)>0 && d.ceeStatut!=='Payé';
@@ -862,12 +864,12 @@ function npResume(list){
 const comOk = d => (!S.fCom || d.commercial===S.fCom) && (!S.fReg || (S.fReg==='*' ? !!d.regie : S.fReg==='-' ? !d.regie : d.regie===S.fReg));
 function filtered(){
   const q=norm(S.q);
-  return S.dossiers.filter(d=>(!S.fStatut||d.statut===S.fStatut)&&comOk(d)&&payOk(d)&&
+  return S.dossiers.filter(d=>(!S.fStatut||d.statut===S.fStatut)&&comOk(d)&&payOk(d)&&blOk(d)&&
     (!q || norm([d.client?.nom,d.client?.prenom,d.client?.ville,d.client?.cp,d.client?.tel,d.proprietaire?.nom,d.commercial,d.regie,d.poseur,d.notes].join(' ')).includes(q)))
    .sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||'') || fullName(a).localeCompare(fullName(b)));
 }
 function renderDList(){
-  const base=S.dossiers.filter(d=>comOk(d)&&payOk(d));
+  const base=S.dossiers.filter(d=>comOk(d)&&payOk(d)&&blOk(d));
   $('#chips').innerHTML = `<button class="chip" data-st="" aria-pressed="${!S.fStatut}">Tous <b>${base.length}</b></button>`+
     STATUTS.map(s=>{ const n=base.filter(d=>d.statut===s).length; return `<button class="chip" data-st="${esc(s)}" aria-pressed="${S.fStatut===s}"><span class="dot" style="background:var(${STATUT_VAR[s]})"></span>${s} <b>${n}</b></button>`; }).join('');
   $$('#chips [data-st]').forEach(b=>b.onclick=()=>{ S.fStatut=b.dataset.st; renderDList(); });
@@ -877,13 +879,13 @@ function renderDList(){
     $('#dtb').innerHTML=`<tr><td colspan="10">${e}</td></tr>`; $('#dcards').innerHTML=e; return; }
   const cat=(c,st,m)=>`<span class="chipcat">${dotC(c)}<span class="${st==='Payé'?'paid':'muted'}">${esc(st||'—')}</span></span>`;
   $('#dtb').innerHTML = list.map(d=>{ const mg=margePrev(d); return `<tr data-open="${d.id}">
-    <td class="client-cell"><b>${esc(fullName(d))}</b>${dupTag(d)}<span class="small muted">${esc([d.client?.cp,d.client?.ville].filter(Boolean).join(' '))}${d.occupant==='locataire'?' · Locataire':''}</span></td>
+    <td class="client-cell"><b>${esc(fullName(d))}</b>${dupTag(d)}${blTag(d)}<span class="small muted">${esc([d.client?.cp,d.client?.ville].filter(Boolean).join(' '))}${d.occupant==='locataire'?' · Locataire':''}</span></td>
     <td>${badge(d.statut)}</td><td class="num">${d.datePose?fmtDate(d.datePose,{day:'2-digit',month:'2-digit',year:'numeric'}):'<span class="muted">À planifier</span>'}</td>
     <td>${d.regie?`<span class="tag">Régie</span> ${esc(d.regie)}`:esc(d.commercial||'—')}</td><td>${esc(d.poseur||'—')}</td><td>${esc(d.marque||'—')}</td>
     <td>${cat(d.ceeCouleur,d.ceeStatut)}</td><td>${cat(d.mprCouleur,d.mprStatut)}</td>
     <td class="r num">${eur(caPrev(d))}</td><td class="r num ${mg<0?'neg':''}">${eur(mg)}</td></tr>`; }).join('');
   $('#dcards').innerHTML = list.map(d=>`<div class="dcard" data-open="${d.id}">
-    <div class="l1"><div><b>${esc(fullName(d))}</b>${dupTag(d)}<div class="small muted">${esc([d.client?.cp,d.client?.ville].filter(Boolean).join(' '))}</div></div>${badge(d.statut)}</div>
+    <div class="l1"><div><b>${esc(fullName(d))}</b>${dupTag(d)}${blTag(d)}<div class="small muted">${esc([d.client?.cp,d.client?.ville].filter(Boolean).join(' '))}</div></div>${badge(d.statut)}</div>
     <div class="l2"><span>${ic('cal','style="width:14px;height:14px;vertical-align:-2px"')} ${d.datePose?fmtDate(d.datePose):'À planifier'}</span><span>${d.regie?'Régie '+esc(d.regie):esc(d.commercial||'—')}</span>${d.poseur?`<span>${esc(d.poseur)}</span>`:''}
     <span class="chipcat">CEE ${dotC(d.ceeCouleur)} ${esc(d.ceeStatut||'—')}</span><span class="chipcat">MPR ${dotC(d.mprCouleur)} ${esc(d.mprStatut||'—')}</span><span class="num">Marge ${eur(margePrev(d))}</span></div></div>`).join('');
 }
@@ -1507,6 +1509,10 @@ function bindDup(d){
     }catch(err){ b.disabled=false; toast('Non enregistré : '+(err.message||err.code)); }
   });
 }
+/* ============ Bon de livraison : manque tant que le fournisseur ou la marque de PAC n'est pas renseigné ============ */
+const manqueBL = d => !['Installé','Annulé'].includes(d.statut) && (!d.fournisseur || !d.marque);
+const blTag = d => (!isRegie() && manqueBL(d)) ? ` <span class="tag" style="background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)">Manque BL</span>` : '';
+const blOk = d => !S.fBL || (S.fBL==='manque' ? manqueBL(d) : !manqueBL(d) && d.statut!=='Annulé');
 
 /* ============ Régies : stats côté Sayor ============ */
 const REGIE_STATUTS = STATUTS;
@@ -1686,6 +1692,7 @@ function autoRappels(){
   const out=[]; const today=TODAY(); const in7=ymd(new Date(Date.now()+7*864e5));
   S.dossiers.filter(actif).forEach(d=>{ const n=fullName(d);
     if(d.statut==='À confirmer') out.push({cat:'Dossiers à confirmer',txt:`Confirmer le dossier ${n}`,id:d.id,c:'var(--s-aconf)'});
+    if(manqueBL(d)) out.push({cat:'BL à faire',txt:`${n} : faire le BL (${!d.fournisseur&&!d.marque?'fournisseur et marque PAC':!d.fournisseur?'fournisseur':'marque PAC'} à renseigner)`,id:d.id,c:'var(--warn)'});
     { const dl=dupsOf(d); if(dl.length && (d.regie || dl.every(x=>!x.regie && x.id<d.id))) out.push({cat:'Doublons possibles',txt:`${n}${d.regie?' ('+d.regie+')':''} : même client qu’un autre dossier`,id:d.id,c:'var(--bad)'}); }
     if(d.statut==='Docs reçus') out.push({cat:'Docs reçus : pose à placer',txt:`${n}${d.regie?' ('+d.regie+')':''} : documents reçus, placer la pose`,id:d.id,c:'var(--s-drecus)'});
     if(d.statut==='Installé' && d.regie && (d.regieMontant==null||d.regieMontant==='')) out.push({cat:'Commissions régie à renseigner',txt:`${n} : commission ${d.regie} à renseigner`,id:d.id,c:'var(--warn)'});
