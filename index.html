@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<script>window.SAYOR_API = "https://script.google.com/macros/s/AKfycbzXq7V0LEoD7xCEINBg9jDgwMUH0hflWlFa39uj9J7gvPwZ_ovwM00TDZvCBgQtCQJN3g/exec";</script>
+<script>window.SAYOR_API = "https://script.google.com/macros/s/AKfycbzXq7V0LEoD7xCEINBg9jDgwMUH0hflWlFa39uj9J7gvPwZ_ovwM00TDZvCBgQtCQJN3g/exec"; window.SAYOR_VERSION = "24/11 11h32";</script>
 <script>
 /* Affiche à l'écran toute erreur du CRM (diagnostic sur iPad) */
 (function(){ function show(m){ try{ var b=document.getElementById('crm-err'); if(!b){ b=document.createElement('div'); b.id='crm-err'; b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:#B4232A;color:#fff;font:13px/1.4 -apple-system,sans-serif;padding:10px 12px;border-radius:10px;white-space:pre-wrap;max-height:40vh;overflow:auto'; (document.body||document.documentElement).appendChild(b); } b.textContent+=(b.textContent?'\n':'')+'Erreur CRM : '+m; }catch(e){} }
@@ -720,7 +720,7 @@ function renderNav(){
   if(isRegie()){
     $('#side').innerHTML = `<div class="brand"><div class="brand-mark">S</div><div><b>Sayor Groupe</b><span>Espace partenaire · ${esc(S.me.regie)}</span></div></div>`+
       VIEWS_R.map(([k,l,i])=>`<button class="nav-btn" data-go="${k}" ${S.view===k?'aria-current="page"':''}>${ic(i)}${l}</button>`).join('')+
-      `<div class="side-foot">Connecté : <b>${esc(S.me.name||'')}</b></div>`;
+      `<div class="side-foot">Connecté : <b>${esc(S.me.name||'')}</b>${window.SAYOR_VERSION?`<div class="small muted" style="margin-top:2px">Version du ${window.SAYOR_VERSION}</div>`:''}</div>`;
     $('#tabbar').innerHTML = VIEWS_R.map(([k,l,i])=>`<button data-go="${k}" ${S.view===k?'aria-current="page"':''}>${ic(i)}${k==='dossiers'?'Dossiers':k==='parametres'?'Compte':'Accueil'}</button>`).join('');
     const fab=$('#fab'); fab.innerHTML=ic('plus'); fab.hidden = !['dashboard','dossiers'].includes(S.view);
     return;
