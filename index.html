@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<script>window.SAYOR_API = "https://script.google.com/macros/s/AKfycbzXq7V0LEoD7xCEINBg9jDgwMUH0hflWlFa39uj9J7gvPwZ_ovwM00TDZvCBgQtCQJN3g/exec"; window.SAYOR_VERSION = "24/11 11h32";</script>
+<script>window.SAYOR_API = "https://script.google.com/macros/s/AKfycbzXq7V0LEoD7xCEINBg9jDgwMUH0hflWlFa39uj9J7gvPwZ_ovwM00TDZvCBgQtCQJN3g/exec"; window.SAYOR_VERSION = "25/11 19h23";</script>
 <script>
 /* Affiche à l'écran toute erreur du CRM (diagnostic sur iPad) */
 (function(){ function show(m){ try{ var b=document.getElementById('crm-err'); if(!b){ b=document.createElement('div'); b.id='crm-err'; b.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:99999;background:#B4232A;color:#fff;font:13px/1.4 -apple-system,sans-serif;padding:10px 12px;border-radius:10px;white-space:pre-wrap;max-height:40vh;overflow:auto'; (document.body||document.documentElement).appendChild(b); } b.textContent+=(b.textContent?'\n':'')+'Erreur CRM : '+m; }catch(e){} }
@@ -721,8 +721,8 @@ function renderNav(){
     $('#side').innerHTML = `<div class="brand"><div class="brand-mark">S</div><div><b>Sayor Groupe</b><span>Espace partenaire · ${esc(S.me.regie)}</span></div></div>`+
       VIEWS_R.map(([k,l,i])=>`<button class="nav-btn" data-go="${k}" ${S.view===k?'aria-current="page"':''}>${ic(i)}${l}</button>`).join('')+
       `<div class="side-foot">Connecté : <b>${esc(S.me.name||'')}</b>${window.SAYOR_VERSION?`<div class="small muted" style="margin-top:2px">Version du ${window.SAYOR_VERSION}</div>`:''}</div>`;
-    $('#tabbar').innerHTML = VIEWS_R.map(([k,l,i])=>`<button data-go="${k}" ${S.view===k?'aria-current="page"':''}>${ic(i)}${k==='dossiers'?'Dossiers':k==='parametres'?'Compte':'Accueil'}</button>`).join('');
-    const fab=$('#fab'); fab.innerHTML=ic('plus'); fab.hidden = !['dashboard','dossiers'].includes(S.view);
+    $('#tabbar').innerHTML = VIEWS_R.map(([k,l,i])=>`<button data-go="${k}" ${S.view===k?'aria-current="page"':''}>${ic(i)}${k==='dossiers'?'Dossiers':k==='parametres'?'Compte':k==='planning'?'Planning':'Accueil'}</button>`).join('');
+    const fab=$('#fab'); fab.innerHTML=ic('plus'); fab.hidden = !['dashboard','dossiers','planning'].includes(S.view);
     return;
   }
   const nR = autoRappels().length + S.rappels.filter(r=>!r.fait).length;
@@ -753,7 +753,7 @@ function renderBanner(){
 }
 function renderView(){
   const v=$('#view');
-  if(isRegie()){ ({dashboard:vRDash,dossiers:vRDossiers,parametres:vRCompte}[S.view]||vRDash)(v); return; }
+  if(isRegie()){ ({dashboard:vRDash,dossiers:vRDossiers,planning:vPlanning,parametres:vRCompte}[S.view]||vRDash)(v); return; }
   const fn = {dashboard:vDashboard,dossiers:vDossiers,planning:vPlanning,fournisseurs:()=>vEntites('fournisseur'),frais:vFrais,stock:vStock,poseurs:()=>vEntites('poseur'),commerciaux:()=>vEntites('commercial'),regies:()=>vEntites('regie'),finances:vFinances,sav:vSAV,rappels:vRappels,parametres:vParametres,plus:vPlus}[S.view]||vDashboard;
   fn(v);
 }
@@ -1092,6 +1092,7 @@ async function resolveNames(ids){ ids=[...new Set(ids.filter(Boolean))].filter(i
 /* ============ Planning ============ */
 function vPlanning(v){
   const C=S.cal, act=S.dossiers.filter(actif);
+  if(isRegie() && !C.regieInit){ C.mode='semaine'; C.regieInit=1; }
   const dated=act.filter(d=>d.datePose); const aPlan=act.filter(d=>!d.datePose && d.statut!=='Installé');
   const ref=C.ref; let title, body;
   if(C.mode==='mois'){
@@ -1129,7 +1130,7 @@ function vPlanning(v){
   $('#cal-prev').onclick=()=>step(-1); $('#cal-next').onclick=()=>step(1); $('#cal-today').onclick=()=>{ C.ref=new Date(); C.sel=TODAY(); renderView(); };
   $$('[data-day]',v).forEach(b=>b.onclick=()=>{ C.sel=b.dataset.day; renderView(); });
 }
-const poseCard = d => `<div class="pose-card" style="--c:${poseurColor(d.poseur)}" data-open="${d.id}"><span class="t">Pose — ${esc(fullName(d))}</span><span class="small muted">Poseur : ${esc(d.poseur||'non attribué')} · ${esc(d.client?.ville||'')}</span><span>${badge(d.statut)}</span></div>`;
+const poseCard = d => isRegie() ? `<div class="pose-card" style="--c:var(${STATUT_VAR[d.statut]||'--s-attente'})" data-open="${d.id}"><span class="t">${esc(fullName(d))}</span><span class="small muted">${esc([d.client?.cp,d.client?.ville].filter(Boolean).join(' '))}</span><span style="margin-top:4px">${badge(d.statut)}</span></div>` : `<div class="pose-card" style="--c:${poseurColor(d.poseur)}" data-open="${d.id}"><span class="t">Pose — ${esc(fullName(d))}</span><span class="small muted">Poseur : ${esc(d.poseur||'non attribué')} · ${esc(d.client?.ville||'')}</span><span>${badge(d.statut)}</span></div>`;
 
 /* ============ Fournisseurs / Poseurs / Commerciaux ============ */
 function vEntites(type){
@@ -1532,7 +1533,7 @@ function regieStats(r){
 }
 
 /* ============ Espace régie (partenaire) ============ */
-const VIEWS_R = [['dashboard','Tableau de bord','home'],['dossiers','Mes dossiers','folder'],['parametres','Mon compte','gear']];
+const VIEWS_R = [['dashboard','Tableau de bord','home'],['dossiers','Mes dossiers','folder'],['planning','Planning','cal'],['parametres','Mon compte','gear']];
 const docsOf = id => S.documents.filter(x=>x.dossierId===id);
 function rStage(d){
   if(d.statut==='Annulé') return 'Annulé';
